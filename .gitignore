@@ -1,0 +1,112 @@
+
+# ==========================================
+# 1. SEGURANÇA E DADOS SENSÍVEIS (CRÍTICO)
+# ==========================================
+# Ficheiros de ambiente com chaves secretas, passwords e tokens
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# ==========================================
+# 2. PYTHON E DJANGO
+# ==========================================
+# Ambientes virtuais
+venv/
+env/
+ENV/
+.venv/
+
+# Bytecode compilado do Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribuição / Empacotamento
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Instalação de dependências e ferramentas (uv, pip, etc.)
+.uv/
+.cache/
+.tox/
+.nox/
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Base de dados local (SQLite)
+*.sqlite3
+*.db
+db.sqlite3-journal
+
+# Ficheiros de tradução compilados do Django
+*.mo
+
+# ==========================================
+# 3. NODE.JS, REACT E VITE (FRONTEND)
+# ==========================================
+# Dependências
+node_modules/
+jspm_packages/
+
+# Builds de produção e outputs de pré-visualização
+dist/
+dist-ssr/
+build/
+
+# Ficheiros de log de testes e pacotes
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# ==========================================
+# 4. EDITORES E AMBIENTES DE TRABALHO
+# ==========================================
+# VS Code (mantém extensões partilhadas se quiseres, mas ignora dados de workspace locais)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.history/
+
+# JetBrains (IntelliJ, PyCharm, WebStorm)
+.idea/
+
+# ==========================================
+# 5. SISTEMA OPERATIVO
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
