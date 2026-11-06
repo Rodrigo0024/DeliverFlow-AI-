@@ -12,7 +12,8 @@ class RestaurantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        fields = ['id', 'owner', 'owner_username', 'name', 'category', 'delivery_fee', 'is_active', 'created_at', 'menu_items']
+        # Adicionados 'address', 'latitude' e 'longitude' para suportar o cálculo de rota por GPS
+        fields = ['id', 'owner', 'owner_username', 'name', 'category', 'delivery_fee', 'address', 'latitude', 'longitude', 'is_active', 'created_at', 'menu_items']
         read_only_fields = ['owner']
 
 class OrderItemSerializer(serializers.ModelSerializer):
