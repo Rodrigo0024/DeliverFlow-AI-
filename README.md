@@ -1,3 +1,4 @@
+
 # 🍔 DeliverFlow AI (Em construção)
 
 > Ecossistema de alta performance para gestão de delivery, operações de restaurantes e inteligência de recomendação preditiva com suporte a rotas via GPS.
@@ -78,3 +79,106 @@ deliverflow-ai/
 │   └── package.json
 ├── docker-compose.yml      # Orquestração do Backend (porta 8001) e Frontend (porta 3000)
 └── README.md
+
+```
+
+---
+
+## 🚀 7. Formas de Executar o Sistema
+
+Escolha uma das opções abaixo para colocar o ecossistema em funcionamento:
+
+### Opção A: Via Docker Compose (Recomendado para Codespaces e Produção)
+
+Esta opção sobe todo o ambiente isolado e conteinerizado de forma automatizada:
+
+1. Na raiz do repositório, execute o comando para construir e iniciar os containers em segundo plano:
+```bash
+docker compose up --build -d
+
+```
+
+
+2. Aplique as migrações no banco SQLite interno do container:
+```bash
+docker compose exec backend python manage.py migrate
+
+```
+
+
+3. *(Opcional)* Crie uma conta de superusuário para aceder ao painel administrativo:
+```bash
+docker compose exec backend python manage.py createsuperuser
+
+```
+
+
+
+* **Frontend (React App):** Disponível na porta `3000` (`http://localhost:3000`)
+* **Backend (API Django):** Disponível na porta `8001` (`http://localhost:8001/api/`)
+
+---
+
+### Opção B: Execução Nativa (Desenvolvimento Local sem Docker)
+
+Se preferir rodar os serviços diretamente no seu sistema operacional:
+
+#### 1. Configurando e Rodando o Backend (Django)
+
+```bash
+# Entre na pasta do backend
+cd backend
+
+# Crie e ative o ambiente virtual
+python -m venv .venv
+source .venv/bin/activate  # No Windows (PowerShell): .venv\Scripts\Activate
+
+# Instale as dependências
+pip install -r requirements.txt
+
+# Execute as migrações do banco SQLite local
+python manage.py migrate
+
+# Inicie o servidor de desenvolvimento
+python manage.py runserver 0.0.0.0:8000
+
+```
+
+* O backend ficará escutando em `http://127.0.0.1:8000/api/`.
+
+#### 2. Configurando e Rodando o Frontend (React + Vite)
+
+Em outro terminal, na raiz do projeto:
+
+```bash
+# Entre na pasta do frontend
+cd frontend
+
+# Instale as dependências
+npm install
+
+# Inicie a aplicação em modo de desenvolvimento
+npm run dev
+
+```
+
+* O frontend ficará acessível em `http://localhost:5173`.
+
+---
+
+### 📡 Endpoints Principais da API REST
+
+| Verbo | Rota | Descrição |
+| --- | --- | --- |
+| `GET / POST` | `/api/restaurants/` | Lista restaurantes ou cadastra novo estabelecimento. |
+| `GET / POST` | `/api/orders/` | Lista pedidos ou realiza um novo pedido com cálculo automático de total. |
+| `PATCH` | `/api/orders/{id}/update_status/` | Atualiza o status operacional do pedido (Painel do Restaurante). |
+| `GET` | `/api/analytics/recommendations/?item_count={n}&restaurant_id={id}&lat={lat}&lon={lon}` | Retorna pratos recomendados e cálculo dinâmico de tempo por GPS. |
+
+---
+
+*Desenvolvido com foco em engenharia de alta performance.*
+
+```
+
+```
