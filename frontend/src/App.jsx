@@ -107,16 +107,14 @@ export default function App() {
   const isOperationalUser = currentUser && currentUser.user_type !== 'customer';
   
   const myRestaurant = isOperationalUser 
-    ? restaurants.find(r => 
-        r.owner === currentUser?.username || 
-        r.owner_username === currentUser?.username ||
-        r.owner === currentUser?.id
-      )
+    ? (restaurants.find(r => 
+        String(r.owner) === String(currentUser?.username) || 
+        String(r.owner_username) === String(currentUser?.username) ||
+        String(r.owner) === String(currentUser?.id) ||
+        String(r.owner_id) === String(currentUser?.id)
+      ) || null)
     : null;
 
-  // FILTRAGEM RIGOROSA DE PEDIDOS:
-  // - Se for Lojista/Dono: vê apenas os pedidos do SEU restaurante.
-  // - Se for Cliente: vê apenas os SEUS próprios pedidos.
   const myCustomerOrders = orders.filter(order => {
     if (isOperationalUser) {
       return myRestaurant && (order.restaurant === myRestaurant.id || order.restaurant_name === myRestaurant.name);
@@ -126,7 +124,7 @@ export default function App() {
              order.customer === currentUser.username || 
              order.customer === currentUser.id;
     }
-    return true; // fallback se não houver dados de usuário para filtrar localmente
+    return true;
   });
 
   const allMenuItems = restaurants.flatMap(r => {
@@ -172,6 +170,7 @@ export default function App() {
         {activeTab === 'orders' && (
           <Orders 
             orders={myCustomerOrders} 
+            restaurants={restaurants} 
             loadData={loadData} 
             setFeedbackMessage={setFeedbackMessage} 
           />

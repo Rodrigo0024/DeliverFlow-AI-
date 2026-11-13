@@ -5,6 +5,11 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
   const [restName, setRestName] = useState('');
   const [restCategory, setRestCategory] = useState('Lanches');
   const [restDeliveryFee, setRestDeliveryFee] = useState('');
+  const [restAddress, setRestAddress] = useState('');
+  const [restLatitude, setRestLatitude] = useState('');
+  const [restLongitude, setRestLongitude] = useState('');
+
+  const [currentRestaurant, setCurrentRestaurant] = useState(myRestaurant);
 
   const [editingId, setEditingId] = useState(null);
   const [dishName, setDishName] = useState('');
@@ -13,12 +18,42 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
   const [dishImage, setDishImage] = useState('');
 
   useEffect(() => {
+    setCurrentRestaurant(myRestaurant);
     if (myRestaurant) {
       setRestName(myRestaurant.name || '');
       setRestCategory(myRestaurant.category || 'Lanches');
       setRestDeliveryFee(myRestaurant.delivery_fee || '');
+      setRestAddress(myRestaurant.address || '');
+      setRestLatitude(myRestaurant.latitude !== null && myRestaurant.latitude !== undefined ? myRestaurant.latitude : '');
+      setRestLongitude(myRestaurant.longitude !== null && myRestaurant.longitude !== undefined ? myRestaurant.longitude : '');
     }
   }, [myRestaurant]);
+
+  // Função para capturar a localização atual do dispositivo via GPS
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setFeedbackMessage('A geolocalização não é suportada pelo teu navegador.');
+      return;
+    }
+
+    setFeedbackMessage('A obter localização atual do dispositivo...');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        
+        setRestLatitude(lat);
+        setRestLongitude(lng);
+        setFeedbackMessage('Localização obtida com sucesso!');
+      },
+      (error) => {
+        console.error('Erro ao obter localização:', error);
+        setFeedbackMessage('Não foi possível obter a tua localização. Verifica as permissões do navegador.');
+      },
+      { enableHighAccuracy: true }
+    );
+  };
 
   const handleRegisterRestaurant = async (e) => {
     e.preventDefault();
@@ -26,17 +61,26 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
       const payload = {
         name: restName,
         category: restCategory,
-        delivery_fee: parseFloat(restDeliveryFee)
+        delivery_fee: parseFloat(restDeliveryFee),
+        address: restAddress,
+        latitude: restLatitude !== '' ? parseFloat(restLatitude) : null,
+        longitude: restLongitude !== '' ? parseFloat(restLongitude) : null,
       };
 
-      if (myRestaurant && myRestaurant.id) {
-        await updateRestaurant(myRestaurant.id, payload);
-        setFeedbackMessage('Dados da loja atualizados com sucesso!');
+      let response;
+      if (currentRestaurant && currentRestaurant.id) {
+        response = await updateRestaurant(currentRestaurant.id, payload);
+        setFeedbackMessage('Dados da loja e localização atualizados com sucesso!');
       } else {
-        await createRestaurant(payload);
-        setFeedbackMessage('Restaurante cadastrado com sucesso!');
+        response = await createRestaurant(payload);
+        setFeedbackMessage('Restaurante e localização cadastrados com sucesso!');
       }
-      loadData();
+
+      if (response && response.data) {
+        setCurrentRestaurant(response.data);
+      }
+
+      if (loadData) await loadData();
     } catch (error) {
       console.error("Erro ao salvar restaurante:", error.response?.data);
       const errorData = error.response?.data;
@@ -51,7 +95,8 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
   const handleSaveMenuItem = async (e) => {
     e.preventDefault();
     
-    if (!myRestaurant || !myRestaurant.id) {
+    const activeRestId = currentRestaurant?.id || myRestaurant?.id;
+    if (!activeRestId) {
       setFeedbackMessage('Erro: Nenhum restaurante associado. Salve os dados da loja primeiro.');
       return;
     }
@@ -63,12 +108,12 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
           description: dishDescription,
           price: parseFloat(dishPrice),
           image: dishImage,
-          restaurant: myRestaurant.id
+          restaurant: activeRestId
         });
         setFeedbackMessage('Prato atualizado com sucesso!');
         setEditingId(null);
       } else {
-        await createMenuItem(myRestaurant.id, {
+        await createMenuItem(activeRestId, {
           name: dishName,
           description: dishDescription,
           price: parseFloat(dishPrice),
@@ -81,7 +126,7 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
       setDishDescription('');
       setDishPrice('');
       setDishImage('');
-      loadData();
+      if (loadData) loadData();
     } catch (error) {
       console.error("Erro ao salvar prato:", error.response?.data);
       const errData = error.response?.data;
@@ -107,43 +152,57 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
       try {
         await deleteMenuItem(itemId);
         setFeedbackMessage('Prato excluído com sucesso!');
-        loadData();
+        if (loadData) loadData();
       } catch (error) {
         setFeedbackMessage('Erro ao excluir prato.');
       }
     }
   };
 
+  const activeMenu = currentRestaurant?.menu_items || myRestaurant?.menu_items || [];
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-12 font-sans">
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Gestão do Estabelecimento</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Configure as informações da sua loja e monte o seu cardápio de vendas.</p>
+          <p className="text-sm text-gray-500 mt-0.5">Configure as informações da sua loja, localização por GPS e monte o seu cardápio.</p>
         </div>
-        {myRestaurant && (
+        {currentRestaurant?.name && (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100">
-            Loja Ativa: {myRestaurant.name}
+            Loja Ativa: {currentRestaurant.name}
           </span>
         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        {/* Bloco 1: Dados do Restaurante */}
+        {/* Bloco 1: Dados do Restaurante & Localização */}
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600 font-bold text-lg">🏪</div>
-              <div>
-                <h2 className="text-base font-bold text-gray-900">Perfil da Loja</h2>
-                <p className="text-xs text-gray-500">Altere o nome, categoria ou taxa de entrega.</p>
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600 font-bold text-lg">🏪</div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Perfil da Loja & Localização</h2>
+                  <p className="text-xs text-gray-500">Defina os dados e coordenadas para cálculo de ETA por GPS.</p>
+                </div>
               </div>
+              
+              {/* BOTÃO PARA OBTER LOCALIZAÇÃO AUTOMÁTICA */}
+              <button 
+                type="button"
+                onClick={handleGetLocation}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5 cursor-pointer border-0"
+                title="Preencher com a localização atual do dispositivo"
+              >
+                📍 Usar Meu GPS
+              </button>
             </div>
 
-            <form onSubmit={handleRegisterRestaurant} className="space-y-5">
+            <form onSubmit={handleRegisterRestaurant} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Nome do Restaurante</label>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Nome do Restaurante</label>
                 <input 
                   type="text" 
                   value={restName} 
@@ -154,41 +213,79 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Categoria Principal</label>
-                <select 
-                  value={restCategory} 
-                  onChange={(e) => setRestCategory(e.target.value)} 
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition"
-                >
-                  <option value="Lanches">Lanches</option>
-                  <option value="Pizzas">Pizzas</option>
-                  <option value="Brasileira">Brasileira</option>
-                  <option value="Japonesa">Japonesa</option>
-                  <option value="Italiana">Italiana</option>
-                  <option value="Doces e Sobremesas">Doces e Sobremesas</option>
-                  <option value="Bebidas">Bebidas</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Categoria Principal</label>
+                  <select 
+                    value={restCategory} 
+                    onChange={(e) => setRestCategory(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition"
+                  >
+                    <option value="Lanches">Lanches</option>
+                    <option value="Pizzas">Pizzas</option>
+                    <option value="Brasileira">Brasileira</option>
+                    <option value="Japonesa">Japonesa</option>
+                    <option value="Italiana">Italiana</option>
+                    <option value="Doces e Sobremesas">Doces e Sobremesas</option>
+                    <option value="Bebidas">Bebidas</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Taxa de Entrega (R$)</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={restDeliveryFee} 
+                    onChange={(e) => setRestDeliveryFee(e.target.value)} 
+                    required
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition"
+                    placeholder="5.00"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Taxa de Entrega (R$)</label>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Endereço Completo</label>
                 <input 
-                  type="number" 
-                  step="0.01" 
-                  value={restDeliveryFee} 
-                  onChange={(e) => setRestDeliveryFee(e.target.value)} 
-                  required
+                  type="text" 
+                  value={restAddress} 
+                  onChange={(e) => setRestAddress(e.target.value)} 
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition"
-                  placeholder="5.00"
+                  placeholder="Ex: Av. Principal, 100 - Centro"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Latitude (GPS)</label>
+                  <input 
+                    type="number" 
+                    step="any" 
+                    value={restLatitude} 
+                    onChange={(e) => setRestLatitude(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition"
+                    placeholder="Ex: -22.2215"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Longitude (GPS)</label>
+                  <input 
+                    type="number" 
+                    step="any" 
+                    value={restLongitude} 
+                    onChange={(e) => setRestLongitude(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition"
+                    placeholder="Ex: -49.9542"
+                  />
+                </div>
               </div>
 
               <button 
                 type="submit" 
                 className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-4 rounded-xl text-sm transition shadow-sm hover:shadow cursor-pointer border-0 mt-2"
               >
-                {myRestaurant ? 'Atualizar Dados da Loja' : 'Salvar Restaurante'}
+                {currentRestaurant?.id ? 'Atualizar Dados e Localização' : 'Salvar Restaurante'}
               </button>
             </form>
           </div>
@@ -215,7 +312,7 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
               )}
             </div>
 
-            {myRestaurant ? (
+            {currentRestaurant?.id ? (
               <form onSubmit={handleSaveMenuItem} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Nome do Prato</label>
@@ -285,7 +382,7 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
       </div>
 
       {/* Seção Inferior: Listagem Moderna dos Pratos */}
-      {myRestaurant && (
+      {currentRestaurant?.id && (
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
             <div>
@@ -293,13 +390,13 @@ export default function ManageRestaurant({ myRestaurant, loadData, setFeedbackMe
               <p className="text-xs text-gray-500">Gerencie os itens disponíveis para os clientes.</p>
             </div>
             <span className="bg-gray-100 text-gray-700 text-xs font-bold px-3 py-1 rounded-full">
-              {myRestaurant.menu_items?.length || 0} {myRestaurant.menu_items?.length === 1 ? 'item' : 'itens'}
+              {activeMenu.length} {activeMenu.length === 1 ? 'item' : 'itens'}
             </span>
           </div>
 
-          {myRestaurant.menu_items && myRestaurant.menu_items.length > 0 ? (
+          {activeMenu.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {myRestaurant.menu_items.map((item) => (
+              {activeMenu.map((item) => (
                 <div key={item.id} className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden flex flex-col justify-between hover:shadow-md transition">
                   <div className="relative h-40 bg-gray-200">
                     {item.image ? (

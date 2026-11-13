@@ -1,55 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import React, { useState } from 'react';
 
 export default function Home({ currentUser, restaurants, topDishes, setSelectedRestaurant, setSelectedItem, setActiveTab, selectedRestaurant, quantity, setQuantity, orderSubmit, selectedItem }) {
   const [showAllRestaurants, setShowAllRestaurants] = useState(false);
-  const [smartInsights, setSmartInsights] = useState(null);
-  const [loadingInsights, setLoadingInsights] = useState(false);
-  const [locationStatus, setLocationStatus] = useState('Buscando GPS...');
+  const [clientLocation, setClientLocation] = useState(null);
 
-  // Busca os Insights de IA e captura a geolocalização real do cliente (GPS)
-  useEffect(() => {
-    if (!currentUser) return;
-
-    async function loadSmartInsightsWithLocation(lat = null, lon = null) {
-      setLoadingInsights(true);
-      try {
-        const restId = selectedRestaurant ? selectedRestaurant.id : '';
-        let queryParams = `item_count=${quantity || 1}&restaurant_id=${restId}`;
-        
-        if (lat && lon) {
-          queryParams += `&lat=${lat}&lon=${lon}`;
-          setLocationStatus('Rota GPS Ativa');
-        } else {
-          setLocationStatus('Localização Padrão');
-        }
-
-        const response = await api.get(`analytics/recommendations/?${queryParams}`);
-        setSmartInsights(response.data);
-      } catch (error) {
-        console.error("Erro ao carregar insights de IA:", error);
-        setLocationStatus('Erro no GPS');
-      } finally {
-        setLoadingInsights(false);
-      }
-    }
-
-    // Tenta obter a localização via GPS do navegador
+  // Tenta obter a localização via GPS do navegador para calcular as distâncias
+  React.useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          loadSmartInsightsWithLocation(position.coords.latitude, position.coords.longitude);
+          setClientLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          });
         },
         (error) => {
-          console.warn("Geolocalização negada ou indisponível, prosseguindo sem coordenadas GPS.", error);
-          loadSmartInsightsWithLocation(); // Fallback sem coordenadas
+          console.warn("Geolocalização indisponível:", error);
         },
         { timeout: 10000, maximumAge: 60000 }
       );
-    } else {
-      loadSmartInsightsWithLocation();
     }
-  }, [currentUser, quantity, selectedRestaurant]);
+  }, []);
+
+  // Cálculo da distância Haversine em km
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371; // Raio da Terra em km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c).toFixed(1);
+  };
 
   const handleRestaurantChange = (e) => {
     const restaurantId = parseInt(e.target.value, 10);
@@ -79,35 +64,12 @@ export default function Home({ currentUser, restaurants, topDishes, setSelectedR
         )}
       </div>
 
-      {/* PAINEL DE INTELIGÊNCIA ARTIFICIAL: Previsão Dinâmica de Entrega com Base em GPS */}
-      {currentUser && smartInsights && (
-        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-6 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-indigo-800/40">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-400/20">
-                IA PREDICTIVE ENGINE (GPS ROUTING)
-              </span>
-              <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-400/20">
-                {locationStatus}
-              </span>
-            </div>
-            <h4 className="text-lg font-black mt-2 text-white">
-              Entrega Estimada: ~{smartInsights.estimated_delivery_time_minutes} minutos ({smartInsights.delivery_window})
-            </h4>
-            <p className="text-xs text-indigo-200/80 mt-0.5">
-              {smartInsights.prediction_basis}
-            </p>
-          </div>
-          <div className="bg-indigo-600/30 border border-indigo-400/30 px-3.5 py-1.5 rounded-xl text-xs font-bold text-indigo-200">
-            {loadingInsights ? 'Calculando Rota...' : 'Algoritmo Ativo'}
-          </div>
-        </div>
-      )}
-
-      {/* Seção de Pedido Rápido */}
+      {/* Seção de Pedido Rápido com Botão de Confirmar */}
       {currentUser && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="font-bold text-gray-900 mb-4">Fazer Pedido Rápido</h3>
+          <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span>🛒</span> Fazer Pedido Rápido
+          </h3>
           <form onSubmit={orderSubmit} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Restaurante</label>
@@ -154,57 +116,12 @@ export default function Home({ currentUser, restaurants, topDishes, setSelectedR
             <div>
               <button 
                 type="submit" 
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-sm transition border-0 cursor-pointer"
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-sm transition border-0 cursor-pointer shadow-sm"
               >
                 Confirmar Pedido
               </button>
             </div>
           </form>
-        </div>
-      )}
-
-      {/* RECOMENDAÇÕES INTELIGENTES DE PRATOS (IA / Histórico) */}
-      {currentUser && smartInsights?.recommendations && smartInsights.recommendations.length > 0 && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h2 className="text-xl font-black text-gray-900">Recomendados para Você</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Sugestões calculadas com base nos seus pedidos e pratos populares.</p>
-            </div>
-            <span className="text-xs font-bold bg-purple-50 text-purple-700 px-3 py-1 rounded-full border border-purple-100">
-              Personalizado via IA
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {smartInsights.recommendations.map((dish) => (
-              <div key={dish.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col justify-between">
-                <div>
-                  {dish.image ? (
-                    <img src={dish.image} alt={dish.name} className="w-full h-32 object-cover rounded-lg mb-3" />
-                  ) : (
-                    <div className="w-full h-32 bg-gray-200 rounded-lg mb-3 flex items-center justify-center text-xs text-gray-400">Sem Imagem</div>
-                  )}
-                  <h4 className="font-bold text-gray-800 text-sm">{dish.name}</h4>
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{dish.description}</p>
-                </div>
-                <div className="mt-4 flex justify-between items-center">
-                  <span className="font-black text-emerald-600 text-sm">R$ {Number(dish.price).toFixed(2)}</span>
-                  <button 
-                    onClick={() => {
-                      const rest = restaurants.find(r => (r.menu_items || r.menuitems || []).some(m => m.id === dish.id));
-                      if (rest) setSelectedRestaurant(rest);
-                      setSelectedItem(dish.id.toString());
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }} 
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition border-0 cursor-pointer"
-                  >
-                    Selecionar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
@@ -249,7 +166,7 @@ export default function Home({ currentUser, restaurants, topDishes, setSelectedR
         )}
       </div>
 
-      {/* Restaurantes Mais Populares */}
+      {/* Restaurantes Mais Populares com Endereço e Cálculo de Distância */}
       <div>
         <h2 className="text-xl font-black text-gray-900 mb-4">Restaurantes Mais Populares</h2>
         {restaurants && restaurants.length > 0 ? (
@@ -257,17 +174,34 @@ export default function Home({ currentUser, restaurants, topDishes, setSelectedR
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {displayedRestaurants.map((rest) => {
                 const menuList = rest.menu_items || rest.menuitems || [];
+                const distance = clientLocation && rest.latitude && rest.longitude
+                  ? calculateDistance(clientLocation.latitude, clientLocation.longitude, rest.latitude, rest.longitude)
+                  : null;
+
                 return (
                   <div key={rest.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
                     <div>
-                      <div className="flex justify-between items-start mb-4">
+                      <div className="flex justify-between items-start mb-2">
                         <div>
                           <h3 className="text-lg font-bold text-gray-900">{rest.name}</h3>
                           <span className="text-xs bg-red-50 text-red-600 px-2.5 py-0.5 rounded-full font-semibold">{rest.category}</span>
                         </div>
                         <span className="text-xs font-medium text-gray-500">Taxa: R$ {Number(rest.delivery_fee).toFixed(2)}</span>
                       </div>
-                      <div className="border-t pt-3">
+
+                      {/* Exibição do Endereço e Distância por GPS */}
+                      <div className="flex justify-between items-center text-xs text-gray-500 mb-4 pb-2 border-b border-gray-100">
+                        <p className="flex items-center gap-1">
+                          📍 {rest.address || 'Endereço não informado'}
+                        </p>
+                        {distance && (
+                          <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                            {distance} km de você
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
                         <h4 className="text-xs font-bold uppercase text-gray-400 mb-3 tracking-wider">Cardápio</h4>
                         {menuList.length > 0 ? (
                           <div className="space-y-2.5">
@@ -287,7 +221,7 @@ export default function Home({ currentUser, restaurants, topDishes, setSelectedR
                                         setSelectedItem(item.id.toString());
                                         window.scrollTo({ top: 0, behavior: 'smooth' });
                                       }}
-                                      className="bg-red-600 hover:bg-red-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs transition border-0 cursor-pointer"
+                                      className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition border-0 cursor-pointer shadow-sm"
                                     >
                                       Pedir
                                     </button>

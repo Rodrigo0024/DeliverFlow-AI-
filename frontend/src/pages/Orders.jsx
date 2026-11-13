@@ -1,8 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
-export default function Orders({ orders, loadData, setFeedbackMessage }) {
+export default function Orders({ orders, restaurants = [], loadData, setFeedbackMessage }) {
   const [activeSubTab, setActiveSubTab] = useState('pending');
+  const [clientLocation, setClientLocation] = useState(null);
+
+  // Obtém a geolocalização do cliente via GPS ao carregar a página de pedidos
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setClientLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.warn("Geolocalização indisponível nos pedidos:", error);
+        },
+        { timeout: 10000, maximumAge: 60000 }
+      );
+    }
+  }, []);
+
+  // Fórmula de Haversine para calcular a distância em KM
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371; // Raio da Terra em km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c).toFixed(1);
+  };
+
+  // Estimativa aproximada de tempo (3 min por km + 10 min de preparo)
+  const calculateETA = (distanceKm) => {
+    if (!distanceKm) return null;
+    const minutes = Math.round(distanceKm * 3 + 10);
+    return `${minutes} min`;
+  };
 
   const handleCancelOrder = async (orderId) => {
     if (!window.confirm('Tem certeza de que deseja cancelar este pedido?')) return;
@@ -39,13 +79,12 @@ export default function Orders({ orders, loadData, setFeedbackMessage }) {
       {/* Cabeçalho */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          {/* Título com cor forte e sólida em preto para destaque total */}
           <h1 className="text-2xl font-black text-black tracking-tight">Meus Pedidos</h1>
           <p className="text-sm text-gray-600 mt-0.5">Acompanhe o status, detalhes e histórico das suas solicitações.</p>
         </div>
       </div>
 
-      {/* Abas de Filtro de Status (Sem emojis) */}
+      {/* Abas de Filtro de Status */}
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
         <button
           onClick={() => setActiveSubTab('pending')}
@@ -92,6 +131,22 @@ export default function Orders({ orders, loadData, setFeedbackMessage }) {
             
             const totalValue = order.total_amount || order.total_price || order.items?.reduce((acc, item) => acc + (Number(item.price || 0) * Number(item.quantity || 1)), 0) || 0;
 
+            // Busca o restaurante correspondente na lista de restaurantes pelo ID ou nome
+            const matchedRestaurant = restaurants.find(r => 
+              String(r.id) === String(order.restaurant) || r.name === order.restaurant_name
+            );
+
+            const restaurantAddress = order.restaurant_address || order.address || matchedRestaurant?.address;
+            const restLat = order.restaurant_latitude || matchedRestaurant?.latitude;
+            const restLon = order.restaurant_longitude || matchedRestaurant?.longitude;
+
+            // Cálculo da distância e ETA
+            const distance = clientLocation && restLat && restLon
+              ? calculateDistance(clientLocation.latitude, clientLocation.longitude, restLat, restLon)
+              : null;
+
+            const eta = calculateETA(distance);
+
             return (
               <div 
                 key={order.id} 
@@ -114,10 +169,24 @@ export default function Orders({ orders, loadData, setFeedbackMessage }) {
                         Status: {order.status}
                       </span>
                     </div>
+
                     <h3 className="text-lg font-bold text-gray-900 mt-2">
-                      {order.restaurant_name || `Restaurante #${order.restaurant}`}
+                      {order.restaurant_name || matchedRestaurant?.name || `Restaurante #${order.restaurant}`}
                     </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
+
+                    {/* Exibição do Endereço do Restaurante e Distância/ETA */}
+                    <div className="mt-1 space-y-1">
+                      <p className="text-xs text-gray-500 flex items-center gap-1">
+                        📍 {restaurantAddress || 'Endereço do restaurante não informado'}
+                      </p>
+                      {distance && (
+                        <p className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                          ⏱️ Tempo estimado: {eta} ({distance} km até sua casa)
+                        </p>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-gray-400 mt-1">
                       Realizado em: {new Date(order.created_at || Date.now()).toLocaleString('pt-BR')}
                     </p>
                   </div>
